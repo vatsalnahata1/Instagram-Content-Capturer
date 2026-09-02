@@ -141,6 +141,12 @@ def cmd_stats(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace, settings: Settings) -> int:
+    from .server import serve
+
+    return serve(settings, host=args.host, port=args.port)
+
+
 def cmd_bot(args: argparse.Namespace, settings: Settings) -> int:
     from .bot import run_bot
 
@@ -189,6 +195,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("stats", help="counts of posts and ideas by status")
     p.set_defaults(func=cmd_stats)
 
+    p = sub.add_parser("serve", help="run the local server the Chrome extension talks to")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8787)
+    p.set_defaults(func=cmd_serve)
+
     p = sub.add_parser("bot", help="run the Telegram bot (share reels to it from your phone)")
     p.set_defaults(func=cmd_bot)
     return parser
@@ -197,7 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(
-        level=logging.INFO if args.verbose or args.command == "bot" else logging.WARNING,
+        level=logging.INFO if args.verbose or args.command in ("bot", "serve") else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     settings = Settings.from_env()

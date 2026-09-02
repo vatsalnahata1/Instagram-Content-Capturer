@@ -22,6 +22,53 @@ class FetchedPost:
     comment_count: int | None
     video_path: Path | None          # None for image-only posts
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
+    media_source: str = "yt-dlp"     # yt-dlp | direct | none
+
+
+@dataclass
+class ObservedPost:
+    """What the browser extension saw while you watched a reel."""
+
+    shortcode: str
+    url: str
+    creator: str | None = None
+    caption: str | None = None
+    video_url: str | None = None      # CDN link the page was already playing
+    posted_at: str | None = None
+    duration_sec: float | None = None
+    like_count: int | None = None
+    comment_count: int | None = None
+    screenshots: list[str] = field(default_factory=list, repr=False)   # base64 JPEGs of the player
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "ObservedPost":
+        def _int(v: Any) -> int | None:
+            try:
+                return int(v) if v is not None and v != "" else None
+            except (TypeError, ValueError):
+                return None
+
+        def _float(v: Any) -> float | None:
+            try:
+                return float(v) if v is not None and v != "" else None
+            except (TypeError, ValueError):
+                return None
+
+        shortcode = str(payload.get("shortcode") or "").strip()
+        url = str(payload.get("url") or "").strip() or f"https://www.instagram.com/reel/{shortcode}/"
+        shots = payload.get("screenshots") or []
+        return cls(
+            shortcode=shortcode,
+            url=url,
+            creator=(payload.get("creator") or None),
+            caption=(payload.get("caption") or None),
+            video_url=(payload.get("video_url") or None),
+            posted_at=_timestamp_to_iso(payload.get("taken_at")) if payload.get("taken_at") else (payload.get("posted_at") or None),
+            duration_sec=_float(payload.get("duration_sec")),
+            like_count=_int(payload.get("like_count")),
+            comment_count=_int(payload.get("comment_count")),
+            screenshots=[s for s in shots if isinstance(s, str) and s],
+        )
 
 
 class FetchError(RuntimeError):
@@ -101,6 +148,97 @@ def fetch_post(url: str, shortcode: str, settings: Settings) -> FetchedPost:
         comment_count=top.get("comment_count") or entry.get("comment_count"),
         video_path=video_path,
         raw=entry,
+    )
+
+
+_DIRECT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    ),
+    "Referer": "https://www.instagram.com/",
+    "Accept": "*/*",
+}
+
+
+def download_direct(video_url: str, dest: Path, *, timeout: float = 60.0, max_bytes: int = 300_000_000) -> Path:
+    """Fetch a CDN media URL the browser was already playing. Raises FetchError on any problem."""
+    import urllib.error
+    import urllib.request
+
+    if not video_url.lower().startswith(("http://", "https://")):
+        raise FetchError("video_url must be an http(s) link")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(video_url, headers=_DIRECT_HEADERS)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as out:
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            if "text/html" in ctype:
+                raise FetchError(f"CDN link returned HTML instead of media ({ctype})")
+            total = 0
+            while True:
+                chunk = resp.read(1 << 16)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    raise FetchError("media larger than the 300MB limit")
+                out.write(chunk)
+    except FetchError:
+        dest.unlink(missing_ok=True)
+        raise
+    except urllib.error.HTTPError as exc:
+        dest.unlink(missing_ok=True)
+        raise FetchError(f"CDN link refused ({exc.code}); it may have expired") from exc
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        dest.unlink(missing_ok=True)
+        raise FetchError(f"could not fetch CDN link: {exc}") from exc
+    if dest.stat().st_size == 0:
+        dest.unlink(missing_ok=True)
+        raise FetchError("CDN link returned an empty file")
+    return dest
+
+
+def fetch_observed(obs: ObservedPost, settings: Settings) -> FetchedPost:
+    """Get media for a post the extension saw. Tries the page's own CDN link, then yt-dlp,
+    and finally gives up on media (the caller can still analyse screenshots + caption)."""
+    errors: list[str] = []
+    video_path: Path | None = None
+    media_source = "none"
+
+    if obs.video_url:
+        try:
+            video_path = download_direct(obs.video_url, settings.media_dir / f"{obs.shortcode}.mp4")
+            media_source = "direct"
+        except FetchError as exc:
+            errors.append(f"direct: {exc}")
+
+    fetched: FetchedPost | None = None
+    if video_path is None:
+        try:
+            fetched = fetch_post(obs.url, obs.shortcode, settings)
+            video_path = fetched.video_path
+            media_source = "yt-dlp" if video_path else "none"
+        except FetchError as exc:
+            errors.append(f"yt-dlp: {exc}")
+        except Exception as exc:  # noqa: BLE001 - yt-dlp raises assorted things
+            errors.append(f"yt-dlp: {type(exc).__name__}: {exc}")
+
+    if video_path is None and not obs.screenshots and not obs.caption:
+        raise FetchError("no media, screenshots or caption to analyse; " + "; ".join(errors))
+
+    return FetchedPost(
+        shortcode=obs.shortcode,
+        url=obs.url,
+        creator=obs.creator or (fetched.creator if fetched else None),
+        caption=obs.caption or (fetched.caption if fetched else None),
+        posted_at=obs.posted_at or (fetched.posted_at if fetched else None),
+        duration_sec=obs.duration_sec or (fetched.duration_sec if fetched else None),
+        like_count=obs.like_count if obs.like_count is not None else (fetched.like_count if fetched else None),
+        comment_count=obs.comment_count if obs.comment_count is not None else (fetched.comment_count if fetched else None),
+        video_path=video_path,
+        raw={"errors": errors},
+        media_source=media_source,
     )
 
 

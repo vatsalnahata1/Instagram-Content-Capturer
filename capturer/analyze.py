@@ -39,10 +39,20 @@ If there is no speech, say so in the summary and rely on the frames and caption.
 Remix ideas must fit the creator's niche and be something they could film this week."""
 
 
-def _build_user_content(post: FetchedPost, transcript_text: str, frames: list[Frame]) -> list[dict[str, Any]]:
+def _build_user_content(
+    post: FetchedPost, transcript_text: str, frames: list[Frame], frames_kind: str = "video"
+) -> list[dict[str, Any]]:
     content: list[dict[str, Any]] = []
+    if frames and frames_kind == "screenshots":
+        content.append({
+            "type": "text",
+            "text": "The images are screenshots of the browser tab taken while the creator watched the reel, "
+                    "in order. Ignore Instagram's own interface (like/comment buttons, the caption box) and read "
+                    "the video's overlay text and visuals.",
+        })
     for frame in frames:
-        content.append({"type": "text", "text": f"Frame at {frame.timestamp_sec:.1f}s:"})
+        label = f"Screenshot {int(frame.timestamp_sec) + 1}:" if frames_kind == "screenshots" else f"Frame at {frame.timestamp_sec:.1f}s:"
+        content.append({"type": "text", "text": label})
         content.append(
             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": frame.jpeg_b64}}
         )
@@ -65,7 +75,14 @@ class AnalysisRefused(RuntimeError):
     pass
 
 
-def analyze_post(post: FetchedPost, transcript_text: str, frames: list[Frame], settings: Settings, client=None) -> PostAnalysis:
+def analyze_post(
+    post: FetchedPost,
+    transcript_text: str,
+    frames: list[Frame],
+    settings: Settings,
+    client=None,
+    frames_kind: str = "video",
+) -> PostAnalysis:
     import anthropic  # lazy so tests can run without the SDK configured
 
     client = client or anthropic.Anthropic()
@@ -73,7 +90,7 @@ def analyze_post(post: FetchedPost, transcript_text: str, frames: list[Frame], s
         model=settings.model,
         max_tokens=16000,
         system=SYSTEM_PROMPT.format(niche=settings.niche),
-        messages=[{"role": "user", "content": _build_user_content(post, transcript_text, frames)}],
+        messages=[{"role": "user", "content": _build_user_content(post, transcript_text, frames, frames_kind)}],
         output_format=PostAnalysis,
     )
     if response.stop_reason == "refusal":

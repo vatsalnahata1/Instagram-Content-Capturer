@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 340px; margin: 0; font: 13px -apple-system, system-ui, sans-serif; color: #111; background: #fff; }
+  header { padding: 12px 14px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+  h1 { font-size: 14px; margin: 0; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eee; }
+  .pill.ok { background: #e6f4ea; color: #1e6b31; } .pill.bad { background: #fdecea; color: #a12622; }
+  section { padding: 10px 14px; border-bottom: 1px solid #eee; }
+  label { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
+  input[type=number], input[type=text] { width: 120px; padding: 3px 6px; border: 1px solid #ccc; border-radius: 4px; }
+  ul { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; }
+  li { padding: 6px 0; border-bottom: 1px solid #f3f3f3; }
+  li b { display: block; } li small { color: #666; }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  button { flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; cursor: pointer; }
+  #ideas { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; margin-top: 8px; }
+  .muted { color: #777; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Content Capturer</h1>
+  <span id="health" class="pill">checking…</span>
+</header>
+<section>
+  <label>Auto-capture reels I watch <input type="checkbox" id="enabled"></label>
+  <label>After watching (seconds) <input type="number" id="minWatchSeconds" min="1" max="60"></label>
+  <label>Frames grabbed per reel <input type="number" id="screenshots" min="0" max="8"></label>
+  <label>Server <input type="text" id="serverUrl"></label>
+</section>
+<section>
+  <div class="muted" id="counts"></div>
+  <ul id="recent"><li class="muted">Loading…</li></ul>
+</section>
+<section>
+  <div class="row">
+    <button id="ideasBtn">Generate 5 ideas</button>
+    <button id="refreshBtn">Refresh</button>
+  </div>
+  <div id="ideas"></div>
+</section>
+<script src="popup.js"></script>
+</body>
+</html>

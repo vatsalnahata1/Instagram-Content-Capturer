@@ -54,7 +54,8 @@ def make_capturer(settings: Settings, db: Database, tmp_path: Path, *, fail_stag
         assert count == settings.frames
         return [Frame(timestamp_sec=1.0, jpeg_b64="AAAA")]
 
-    def analyzer(post, transcript_text, frames, s):
+    def analyzer(post, transcript_text, frames, s, frames_kind="video"):
+        calls["frames_kind"] = frames_kind
         calls["analyze"] = calls.get("analyze", 0) + 1
         if fail_stage == "analyze":
             raise RuntimeError("api down")
