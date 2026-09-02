@@ -5,8 +5,16 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
+import os
+import tempfile
+from pathlib import Path
 
 from .db import Database, analysis_of
+
+log = logging.getLogger(__name__)
+
+EXPORT_FILES = ("content-bank.csv", "content-bank.md", "ideas.md")
 
 
 def posts_to_markdown(db: Database, limit: int = 500) -> str:
@@ -68,3 +76,43 @@ def ideas_to_markdown(db: Database, status: str | None = "new", limit: int = 500
             out.append("- Sources: " + ", ".join(f"#{s}" for s in sources))
         out.append("")
     return "\n".join(out)
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """Write via a temp file + rename so a syncing folder (Google Drive, Dropbox) never sees a partial file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def write_exports(db: Database, export_dir: Path | None) -> list[Path]:
+    """Rewrite the bank and ideas files in ``export_dir``. Returns the paths written.
+
+    Never raises: an unreachable folder (Drive not mounted, permissions) is logged and skipped so
+    a capture is not marked failed because of a backup problem.
+    """
+    if not export_dir:
+        return []
+    written: list[Path] = []
+    try:
+        for name, text in (
+            ("content-bank.csv", posts_to_csv(db)),
+            ("content-bank.md", posts_to_markdown(db)),
+            ("ideas.md", ideas_to_markdown(db, status=None)),
+        ):
+            target = export_dir / name
+            _atomic_write(target, text)
+            written.append(target)
+        log.info("Exports refreshed in %s", export_dir)
+    except OSError as exc:
+        log.warning("Could not write exports to %s: %s", export_dir, exc)
+    return written

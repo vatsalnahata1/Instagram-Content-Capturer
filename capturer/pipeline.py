@@ -13,6 +13,7 @@ from . import media as media_mod
 from . import transcribe as transcribe_mod
 from .config import Settings
 from .db import Database
+from .export import write_exports
 from .urls import shortcode_from_url
 
 log = logging.getLogger(__name__)
@@ -141,6 +142,7 @@ class Capturer:
                 analysis=analysis_dict,
                 media_source=media_source,
             )
+            write_exports(self.db, self.settings.export_dir)
             return CaptureResult(post_id, shortcode, url, "done", creator=post.creator, analysis=analysis_dict)
         except Exception as exc:  # noqa: BLE001 - we want every failure recorded, not raised to the caller
             log.exception("Capture failed for %s", url)

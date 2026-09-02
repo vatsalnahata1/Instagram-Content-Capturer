@@ -171,7 +171,7 @@ class Handler(BaseHTTPRequestHandler):
             count = max(1, min(int(body.get("count") or 5), 20))
             try:
                 batch = generate_ideas(app.capturer.db, app.settings, count=count, focus=body.get("focus") or None)
-                ids = save_ideas(app.capturer.db, batch)
+                ids = save_ideas(app.capturer.db, batch, app.settings)
             except ValueError as exc:
                 self._json(400, {"error": str(exc)})
                 return

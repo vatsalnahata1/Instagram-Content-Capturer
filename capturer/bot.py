@@ -81,7 +81,7 @@ def run_bot(settings: Settings) -> int:
         try:
             async with lock:
                 batch = await asyncio.to_thread(generate_ideas, capturer.db, settings, count=count, focus=focus)
-            ids = await asyncio.to_thread(save_ideas, capturer.db, batch)
+            ids = await asyncio.to_thread(save_ideas, capturer.db, batch, settings)
         except Exception as exc:  # noqa: BLE001
             log.exception("idea generation failed")
             await status.edit_text(f"Could not generate ideas: {exc}")

@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from . import __version__
 from .config import Settings
 from .db import Database, analysis_of
-from .export import ideas_to_markdown, posts_to_csv, posts_to_markdown
+from .export import ideas_to_markdown, posts_to_csv, posts_to_markdown, write_exports
 from .pipeline import Capturer
 from .urls import extract_instagram_urls
 
@@ -101,7 +101,7 @@ def cmd_ideas(args: argparse.Namespace, settings: Settings) -> int:
         return 0 if ok else 1
 
     batch = generate_ideas(db, settings, count=args.count, since=_since(args.days), focus=args.focus)
-    ids = save_ideas(db, batch)
+    ids = save_ideas(db, batch, settings)
     print("Themes in your bank:")
     for theme in batch.themes:
         print(f"- {theme.name} (posts {', '.join(f'#{i}' for i in theme.post_ids)}): {theme.observation}")
@@ -119,6 +119,14 @@ def cmd_ideas(args: argparse.Namespace, settings: Settings) -> int:
 
 def cmd_export(args: argparse.Namespace, settings: Settings) -> int:
     db = Database(settings.db_path)
+    if args.sync:
+        if not settings.export_dir:
+            print("CAPTURER_EXPORT_DIR is not set in .env", file=sys.stderr)
+            return 2
+        written = write_exports(db, settings.export_dir)
+        for path in written:
+            print(f"Wrote {path}")
+        return 0 if written else 1
     if args.what == "ideas":
         text = ideas_to_markdown(db, status=None)
     elif args.format == "csv":
@@ -190,6 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("what", choices=["posts", "ideas"], nargs="?", default="posts")
     p.add_argument("--format", choices=["md", "csv"], default="md")
     p.add_argument("--out", default=None)
+    p.add_argument("--sync", action="store_true", help="rewrite all export files in CAPTURER_EXPORT_DIR now")
     p.set_defaults(func=cmd_export)
 
     p = sub.add_parser("stats", help="counts of posts and ideas by status")

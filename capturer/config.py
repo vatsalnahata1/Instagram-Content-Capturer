@@ -41,6 +41,7 @@ class Settings:
     telegram_allowed_ids: set[int] = field(default_factory=set)
     cookies_from_browser: str = ""
     cookies_file: str = ""
+    export_dir: Path | None = None   # e.g. a Google Drive folder; exports are rewritten after every capture
 
     @property
     def db_path(self) -> Path:
@@ -55,7 +56,9 @@ class Settings:
         load_dotenv()
         allowed = os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "")
         ids = {int(x) for x in allowed.replace(";", ",").split(",") if x.strip().isdigit()}
+        export_raw = os.environ.get("CAPTURER_EXPORT_DIR", "").strip()
         return cls(
+            export_dir=Path(export_raw).expanduser() if export_raw else None,
             niche=os.environ.get("CAPTURER_NICHE", cls.niche),
             model=os.environ.get("CAPTURER_MODEL", cls.model),
             data_dir=Path(os.environ.get("CAPTURER_DATA_DIR", "data")),

@@ -78,6 +78,13 @@ capturer export ideas --out ideas.md
 
 The popup's **Generate 5 ideas** button does the same without the terminal.
 
+**Automatic backup to Google Drive (or any folder).** Set `CAPTURER_EXPORT_DIR` in `.env` to a
+folder and the server rewrites three files there after every capture and every idea batch:
+`content-bank.csv` (opens in Google Sheets), `content-bank.md`, and `ideas.md`. Point it at a
+Drive folder and the bank is readable from your phone. To find your Drive path on a Mac, open
+Finder, right-click the Drive folder you want, hold Option, and choose "Copy as Pathname".
+`capturer export --sync` rewrites the files on demand.
+
 Other ways in: `capturer add <url>` captures a link directly, and `capturer bot` runs an optional
 Telegram bot you can share reels to from your phone (needs `TELEGRAM_BOT_TOKEN` in `.env`).
 
@@ -89,6 +96,7 @@ Telegram bot you can share reels to from your phone (needs `TELEGRAM_BOT_TOKEN` 
 | `CAPTURER_NICHE` | One line describing your content niche |
 | `CAPTURER_WHISPER_MODEL` | `tiny` for speed, `small` (default), `medium` for accuracy |
 | `CAPTURER_FRAMES` | Frames sent to Claude per video (default 6) |
+| `CAPTURER_EXPORT_DIR` | Folder (e.g. on Google Drive) that gets fresh CSV/Markdown exports after every capture |
 | `INSTAGRAM_COOKIES_FROM_BROWSER` | Only for the yt-dlp fallback, e.g. `chrome` |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_IDS` | Only for the optional phone bot |
 

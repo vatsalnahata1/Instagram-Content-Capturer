@@ -107,8 +107,13 @@ def generate_ideas(
     return batch
 
 
-def save_ideas(db: Database, batch: IdeaBatch) -> list[int]:
-    return db.add_ideas(idea.model_dump() for idea in batch.ideas)
+def save_ideas(db: Database, batch: IdeaBatch, settings: Settings | None = None) -> list[int]:
+    ids = db.add_ideas(idea.model_dump() for idea in batch.ideas)
+    if settings is not None:
+        from .export import write_exports
+
+        write_exports(db, settings.export_dir)
+    return ids
 
 
 def idea_to_dict(idea: Idea) -> dict[str, Any]:
